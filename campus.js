@@ -111,25 +111,25 @@ function cxQueue(who) {
   const rank = j => cxPushFor(j) ? 0 : j.status === 'moving' || j.status === 'sent-back' ? 1 : 2;
   return L.map((j, i) => [j, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
 }
-function cxPlan(j) {
-  if (j.status === 'done') return null;
+function cxPlan(j) { // the plan stored on the job (plannedStart, due), from tools/plan_jobs.py
+  if (j.status === 'done' || j.forLaunch === false) return null;
   if (cxBlocked(j)) return { blocked: true };
-  const t = cxTurnsOf(j.owner); if (!t) return { none: true };
-  const q = cxQueue(j.owner), pos = q.indexOf(j), at = cxSlots(j.owner, pos + 1)[pos];
-  return { pos, at, planned: t.status !== 'confirmed', pushed: !!cxPushFor(j) };
+  if (!j.plannedStart || !j.due) return null;
+  const start = new Date(j.plannedStart), due = new Date(j.due);
+  return { start, due, late: Date.now() > due, pushed: !!cxPushFor(j), planned: (cxTurnsOf(j.owner) || {}).status !== 'confirmed' };
 }
+const cxLate = j => { const p = cxPlan(j); return !!(p && p.late); };
 function cxMissed(who) { // the last turn ended over an hour ago and this AI left nothing on GitHub since
   const t = cxTurnsOf(who); if (!t) return null;
   const last = cxSlots(who, 1, true)[0]; if (!last || Date.now() - last < 3600e3) return null;
   const key = cxAIKey(who), did = (S.activity || []).some(a => a.actor === key && a.date && new Date(a.date) >= last);
   return did ? null : last;
 }
-const cxPlanLine = j => { const p = S.schedule ? cxPlan(j) : null; if (!p) return '';
+const cxPlanLine = j => { const p = cxPlan(j); if (!p) return '';
   if (p.blocked) return `<p class="cx-plan blocked">⏸ Waiting for your decision before it can start.</p>`;
-  if (p.none) return `<p class="cx-plan">No working hours set for ${esc(cxShortAI(j.owner))} yet.</p>`;
-  const miss = cxMissed(j.owner), when = p.at ? cxWhen(p.at) : 'after the next few days';
-  const verb = j.status === 'not-started' ? 'Starts' : 'Next step';
-  return `<p class="cx-plan${miss && p.pos === 0 ? ' late' : ''}">${miss && p.pos === 0 ? `⚠ Late: ${esc(cxShortAI(j.owner))} missed its ${esc(cxWhen(miss))} turn. ` : ''}${p.pushed ? '▶ You pressed Start now: first in line. ' : ''}${verb}: <strong>${esc(when)}</strong>, ${esc(cxShortAI(j.owner))}'s turn (${p.pos === 0 ? 'next in line' : `${p.pos + 1}${['st', 'nd', 'rd'][p.pos] || 'th'} in line`})${p.planned ? ' · planned hours, not yet set in that account' : ''}</p>`; };
+  const who = esc(cxShortAI(j.owner)), next = cxSlots(j.owner, 1)[0];
+  return `<p class="cx-plan${p.late ? ' late' : ''}">${p.late ? `<strong>Late:</strong> it should have been finished by ${esc(cxWhen(p.due))}. ${who} must finish it or explain why. ` : ''}${p.pushed ? `▶ You pressed Start now: first in line${next ? ` at ${who}'s next turn, ${esc(cxWhen(next))}` : ''}. ` : ''}Plan: ${p.start > Date.now() ? (j.status === 'not-started' ? 'starts' : 'continues') : 'started'} <strong>${esc(cxWhen(p.start))}</strong> · finish by <strong>${esc(cxWhen(p.due))}</strong> · ${who}'s turns${p.planned ? ' (planned hours, not yet set in that account)' : ''}</p>`; };
+const cxStartBtn = j => j.status === 'done' ? '' : cxPushFor(j) ? `<a class="ghost cx-start" href="${esc(cxPushFor(j).url)}" target="_blank" rel="noopener">▶ Start requested ↗</a>` : `<button class="primary cx-start" type="button" data-cxstart="${esc(j.id)}">▶ Start now</button>`;
 function cxScheduleHTML() {
   const T = (S.schedule && S.schedule.turns) || []; if (!T.length) return '';
   return `<section class="cx-sched" aria-label="When each AI works"><h2>Who works next</h2><ul>${T.map(t => {
@@ -140,7 +140,7 @@ function cxScheduleHTML() {
 function cxStartNow(id) {
   const j = cxJobs().find(x => x.id === id); if (!j) return;
   const codex = j.owner === 'ChatGPT' ? `\n\n@codex please start this job now in H2ONLB/whysteps: read CLAUDE.md, take job "${j.id}" from docs/launch-jobs.json, work on a branch chatgpt/${j.id} and open a pull request.` : '';
-  const title = `[Push] Start now: ${j.title} (job ${j.id})`;
+  const title = `[Push] ${j.title} (job ${j.id})`;
   const b = `<!-- whysteps-command-center/1 -->\n**To:** ${j.owner}\n**From:** Hiba (founder)\n**Project / feature:** Start now: job ${j.id}\n\nHiba pressed ▶ Start now in the Command Center. Make this job your next turn: "${j.title}" (docs/launch-jobs.json, id ${j.id}). Close this Issue when the job has moved on.${codex}`;
   sendOut({ kind: 'push', key: 'push-' + j.id, title, body: b, labels: 'push,command-center' },
     () => { openGH(newIssueURL(title, b, 'push,command-center')); toast('▶ GitHub opened. Press the green Submit there: the job then goes first in line.'); });
@@ -159,6 +159,7 @@ function cxJobCard(j, opts) {
     ${j.status !== 'done' ? `<p class="cx-at">Next stop: ${esc(cxNext(j))}</p>` : ''}
     ${j.now ? `<p class="cx-now small">${esc(j.now)}</p>` : ''}
     ${cxPlanLine(j)}
+    ${cxStartBtn(j)}
     ${cxDots(j)}
     ${o.owner === false ? '' : `<p class="small muted cx-owner">${CH.svg(CH.robot(cxAIKey(j.owner)), 20)} ${esc(j.owner)}${j.forLaunch === false ? ' · after launch' : ''}</p>`}
     <details class="cx-more"><summary>Show details</summary><p class="small">${esc(j.details || 'No details recorded.')}</p>${links ? `<p class="small">${links}</p>` : ''}</details>
@@ -178,8 +179,8 @@ function cxLaunchBar() {
 }
 function cxRoadStop(j) {
   const [cls] = CX_LIGHT[j.status] || CX_LIGHT['not-started'];
-  const sub = j.status === 'done' ? 'Done' : j.status === 'sent-back' ? `Sent back by ${j.sentBackBy === 'Hiba' ? 'you' : j.sentBackBy || 'the team'}: ${j.reason || ''}` : j.status === 'moving' ? `${cxNowAt(j)} · ${cxShortAI(j.owner)}` : `Not started · ${cxShortAI(j.owner)}${(p => S.schedule && p && p.at ? ' · starts ' + cxWhen(p.at) : p && p.blocked ? ' · waiting for you' : '')(cxPlan(j))}`;
-  return `<li class="cx-stop s-${cls}"><button type="button" class="cx-stop-b" data-cxjob="${esc(j.id)}"><span class="cx-circle" aria-hidden="true"></span><span><strong>${esc(j.title)}</strong><small>${esc(sub)}</small></span>
+  const sub = j.status === 'done' ? 'Done' : j.status === 'sent-back' ? `Sent back by ${j.sentBackBy === 'Hiba' ? 'you' : j.sentBackBy || 'the team'}: ${j.reason || ''}` : j.status === 'moving' ? `${cxNowAt(j)} · ${cxShortAI(j.owner)}${(p => p && p.late ? ' · Late' : p && p.due ? ' · finish by ' + cxWhen(p.due) : '')(cxPlan(j))}` : `Not started · ${cxShortAI(j.owner)}${(p => p && p.late ? ' · Late' : p && p.start ? ' · starts ' + cxWhen(p.start) : p && p.blocked ? ' · waiting for you' : '')(cxPlan(j))}`;
+  return `<li class="cx-stop s-${cls}${cxLate(j) ? ' late' : ''}"><button type="button" class="cx-stop-b" data-cxjob="${esc(j.id)}"><span class="cx-circle" aria-hidden="true"></span><span><strong>${esc(j.title)}</strong><small>${esc(sub)}</small></span>
     <span class="cx-who">${CH.svg(CH.robot(cxAIKey(j.owner)), 26)}</span></button></li>`;
 }
 const CX_ORDER = { done: 0, moving: 1, 'sent-back': 2, 'not-started': 3 };
@@ -213,7 +214,7 @@ function renderWork() {
 function cxJobSheet(id) {
   const j = cxJobs().find(x => x.id === id); if (!j) return;
   openSheet(`<p class="muted small">Job</p><h2 id="sheetTitle">${esc(j.title)}</h2>${cxJobCard(j)}
-    <div class="row">${j.status !== 'done' && !cxBlocked(j) ? (cxPushFor(j) ? `<a class="ghost" href="${esc(cxPushFor(j).url)}" target="_blank" rel="noopener">▶ Start requested ↗</a>` : `<button class="primary" type="button" data-cxstart="${esc(j.id)}">▶ Start now</button>`) : ''}<button class="ghost" type="button" data-cxask="${esc(j.owner)}">Ask ${esc(cxShortAI(j.owner))} a question</button></div>`);
+    <div class="row"><button class="ghost" type="button" data-cxask="${esc(j.owner)}">Ask ${esc(cxShortAI(j.owner))} a question</button></div>`);
 }
 
 /* ---------------------------------------------------------------- office visits: one card per job */

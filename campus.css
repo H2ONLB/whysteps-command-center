@@ -203,3 +203,5 @@ button.cx-stop-b:hover{border-color:var(--teal)}
 .cx-sched em{color:#7A5A00;font-style:normal;font-size:.92em}
 .cx-plan{margin:6px 0;padding:6px 10px;border-radius:10px;background:#EEF5FB;font-size:14px;line-height:1.4}
 .cx-plan.blocked{background:#FFF4E2}.cx-plan.late{background:#FDECEC;color:#7A1410}
+.cx-start{margin:6px 0 4px;display:inline-flex;align-items:center;gap:6px;min-height:44px}
+.cx-stop.late .cx-stop-b{outline:2px solid #D9534F;outline-offset:-2px;border-radius:14px}.cx-stop.late small{color:#A3231B;font-weight:700}
