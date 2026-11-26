@@ -923,7 +923,7 @@ function hqHTML() {
   return `<section class="hq" aria-label="WhySteps headquarters">
     <div class="hq-floors" role="group" aria-label="Floors">${views.map(([k, n]) => `<button class="chip" type="button" data-hqview="${k}">${n}</button>`).join('')}<button class="chip" type="button" id="officeToggle" aria-pressed="true">List view</button>${mailPill()}</div>
     <div id="hqSlot" class="hq-slot"></div>
-    <p class="small muted hq-hint">Tap a room, team or person · drag to move · pinch to zoom · from GitHub ${fmt(S.generated.at)}</p>
+    <p class="small muted hq-hint">Tap a room, team or person · drag to move · two fingers (or right-drag) to turn and tilt · pinch to zoom · from GitHub ${fmt(S.generated.at)}</p>
     ${panel}</section>`;
 }
 function mountHQ() {

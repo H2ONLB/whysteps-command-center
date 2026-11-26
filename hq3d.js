@@ -237,10 +237,15 @@ function create(host, H) {
 
   /* ---------- camera ---------- */
   let tw = null;
+  // Turn and tilt (Hiba, 26 Nov 2026: "I can only view it from the top"). Kept near the drawn angle (about ±50° around,
+  // 20°–70° high), so the walls left open for the view never stand in front of the rooms.
+  const AZ0 = Math.PI / 4, EL0 = Math.asin(1 / Math.sqrt(3)), AZR = .87, ELMIN = .35, ELMAX = 1.22, R = Math.sqrt(2700);
+  let az = AZ0, el = EL0;
+  const turn = (da, de) => { az = clamp(az + da, AZ0 - AZR, AZ0 + AZR); el = clamp(el + de, ELMIN, ELMAX); tw = null; dirty = true; };
   function applyCam() {
     const w = root.clientWidth || 1, h = root.clientHeight || 1, a = w / h;
     cam.left = -FH * a / 2; cam.right = FH * a / 2; cam.top = FH / 2; cam.bottom = -FH / 2; cam.zoom = zoom; cam.updateProjectionMatrix();
-    cam.position.set(target.x + 30, target.y + 30, target.z + 30); cam.lookAt(target); cam.updateMatrixWorld();
+    cam.position.set(target.x + R * Math.cos(el) * Math.sin(az), target.y + R * Math.sin(el), target.z + R * Math.cos(el) * Math.cos(az)); cam.lookAt(target); cam.updateMatrixWorld();
   }
   function goTo(t, z) {
     if (RM.matches) { target.copy(t); zoom = z; dirty = true; return; }
@@ -253,18 +258,28 @@ function create(host, H) {
     const p = ROOM_POS[view] || teamCells[view]; if (p) goTo(new T.Vector3(p.x, p.y - 1.4, p.z), root.clientWidth < 600 ? 2.4 : 2.2);
   }
   // pan, pinch, wheel, tap
-  const pts = new Map(); let drag = null, pinch = null, moved = 0;
+  const pts = new Map(); let drag = null, pinch = null, moved = 0, spin = false;
   const cnv = r.domElement; cnv.style.touchAction = 'none';
   cnv.addEventListener('pointerdown', e => { cnv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0;
-    if (pts.size === 1) drag = { x: e.clientX, y: e.clientY }; else if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom }; drag = null; } });
+    spin = e.button === 2 || e.shiftKey || e.altKey; // mouse: right button or Shift-drag turns; finger: two fingers twist and tilt
+    if (pts.size === 1) drag = { x: e.clientX, y: e.clientY }; else if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: zoom, an: Math.atan2(b.y - a.y, b.x - a.x), my: (a.y + b.y) / 2 }; drag = null; } });
+  cnv.addEventListener('contextmenu', e => e.preventDefault());
   cnv.addEventListener('pointermove', e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); tw = null;
-    if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; zoom = clamp(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, .7, 3.6); moved += 10; dirty = true; return; }
+    if (pinch && pts.size === 2) { const [a, b] = [...pts.values()], an = Math.atan2(b.y - a.y, b.x - a.x), my = (a.y + b.y) / 2;
+      let da = an - pinch.an; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+      zoom = clamp(pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d, .7, 3.6); turn(-da, (my - pinch.my) * .006); pinch.an = an; pinch.my = my; moved += 10; dirty = true; return; }
+    if (drag && spin) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; moved += Math.abs(dx) + Math.abs(dy); turn(-dx * .008, dy * .006); return; }
     if (drag) { const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = { x: e.clientX, y: e.clientY }; moved += Math.abs(dx) + Math.abs(dy);
-      const k = FH / zoom / (root.clientHeight || 1); const right = new T.Vector3(1, 0, -1).normalize(), up = new T.Vector3(-1, 2, -1).normalize();
+      const k = FH / zoom / (root.clientHeight || 1); const right = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
       target.addScaledVector(right, -dx * k).addScaledVector(up, dy * k * .9); dirty = true; } });
   const end = e => { const was = pts.size; pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) { if (was === 1 && moved < 8) tap(e); drag = null; } };
   cnv.addEventListener('pointerup', end); cnv.addEventListener('pointercancel', e => { pts.delete(e.pointerId); drag = pinch = null; });
   cnv.addEventListener('wheel', e => { e.preventDefault(); zoom = clamp(zoom * (e.deltaY < 0 ? 1.1 : .9), .7, 3.6); tw = null; dirty = true; }, { passive: false });
+  // Turn and tilt buttons (also for a keyboard or a screen reader)
+  { const bar = document.createElement('div'); bar.className = 'v3-turn'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Turn the view');
+    [['↺', 'Turn left', () => turn(.35, 0)], ['↻', 'Turn right', () => turn(-.35, 0)], ['⤒', 'Look from higher', () => turn(0, .18)], ['⤓', 'Look from lower', () => turn(0, -.18)], ['⟲', 'Back to the first view', () => { az = AZ0; el = EL0; dirty = true; }]]
+      .forEach(([t, l, f]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = l; b.setAttribute('aria-label', l); b.addEventListener('click', f); bar.append(b); });
+    root.append(bar); }
   const ray = new T.Raycaster();
   function tap(e) {
     const rc = cnv.getBoundingClientRect(); ray.setFromCamera(new T.Vector2((e.clientX - rc.left) / rc.width * 2 - 1, -(e.clientY - rc.top) / rc.height * 2 + 1), cam);
@@ -333,7 +348,7 @@ function create(host, H) {
     },
     setBubble(html) { if (!html) { bubble.hidden = true; bubble.innerHTML = ''; return; } bubble.innerHTML = html; bubble.hidden = false; dirty = true; },
     focus, ROOM_NAMES,
-    state: () => ({ target: target.toArray(), zoom, visitor: visitorId, labels: Object.keys(labels).length, hiba: hiba.position.toArray() }),
+    state: () => ({ target: target.toArray(), zoom, az, el, visitor: visitorId, labels: Object.keys(labels).length, hiba: hiba.position.toArray() }),
     dispose() { alive = false; ro.disconnect(); io.disconnect(); r.dispose(); root.remove(); },
     _dbg: () => ({ visible, dirty, alive, tw: !!tw, hidden: document.hidden })
   };

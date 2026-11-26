@@ -12,6 +12,7 @@ import * as T from './vendor/three/r187/three.module.js';
 const RM = matchMedia('(prefers-reduced-motion: reduce)');
 const POS = { office: [-11, -1], lab: [-6, -4.6], studio: [-0.5, 0.6], school: [6, -4.2], family: [5.2, 3.6], ministry: [11.5, 0], launch: [15, 5] };
 let VIEW = null; // the camera angle, kept when the campus is drawn again with new data
+const HT0 = { office: 3.4, lab: 3.6, studio: 3.6, school: 5, family: 3.6, ministry: 3.6, launch: .3 };
 const LINE = { blue: '#4EA8FF', green: '#3FD18B', red: '#FF6B6B', grey: '#6F8A8E' };
 
 function supported() {
@@ -93,7 +94,7 @@ function create(host, data, onPick) {
   const cnv = r.domElement, pts = new Map(); let moved = 0, pinch0 = 0;
   cnv.addEventListener('pointerdown', e => { cnv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); } });
   cnv.addEventListener('pointermove', e => { const q = pts.get(e.pointerId); if (!q) return;
-    if (pts.size === 1) { const dx = e.clientX - q.x; theta -= dx * .008; moved += Math.abs(dx) + Math.abs(e.clientY - q.y); }
+    if (pts.size === 1) { const dx = e.clientX - q.x, dy = e.clientY - q.y; theta -= dx * .008; ph = Math.min(1.35, Math.max(.32, ph + dy * .006)); moved += Math.abs(dx) + Math.abs(dy); }
     q.x = e.clientX; q.y = e.clientY;
     if (pts.size === 2) { const [a, b] = [...pts.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch0) dist = Math.min(60, Math.max(16, dist * pinch0 / d)); pinch0 = d; moved += 10; }
     dirty = true; });
@@ -106,10 +107,33 @@ function create(host, data, onPick) {
 
   const size = () => { const w = root.clientWidth || 300, h = root.clientHeight || 300; r.setSize(w, h, false); cam.aspect = w / h;
     const tall = w < h * 1.1; cam.fov = tall ? 62 : 38; if (!sized && VIEW) { ({ theta, dist, ph } = VIEW); target.copy(VIEW.t); sized = true; }
-    if (!sized) { dist = tall ? 33 : 34; theta = tall ? -1.0 : -.32; ph = tall ? 1.2 : .86; if (tall) target.set(-1, 0, 2.5); sized = true; } cam.updateProjectionMatrix(); dirty = true; };
+    if (!sized) { dist = tall ? 33 : 34; theta = tall ? -1.0 : -.32; ph = tall ? 1.2 : .86; if (tall) { target.set(1.5, 0, 0); ph = .8; dist = 40; } sized = true; } cam.updateProjectionMatrix(); dirty = true; };
   const ro = new ResizeObserver(size); ro.observe(root); size();
   const io = new IntersectionObserver(es => { visible = es[0].isIntersecting; dirty = true; }); io.observe(root);
   const v3 = new T.Vector3();
+
+  // Turn and tilt buttons (Hiba, 26 Nov 2026), also for a keyboard or a screen reader
+  { const bar = document.createElement('div'); bar.className = 'v3-turn'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Turn the campus');
+    const go = (dt, dp) => { theta += dt; ph = Math.min(1.35, Math.max(.32, ph + dp)); dirty = true; };
+    [['↺', 'Turn left', () => go(.4, 0)], ['↻', 'Turn right', () => go(-.4, 0)], ['⤒', 'Look from higher', () => go(0, .18)], ['⤓', 'Look from lower', () => go(0, -.18)], ['⟲', 'Back to the first view', () => { sized = false; VIEW = null; size(); }]]
+      .forEach(([t, l, f]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = l; b.setAttribute('aria-label', l); b.addEventListener('click', f); bar.append(b); });
+    root.append(bar); }
+
+  // Buildings glow while work is there (Hiba, 26 Nov 2026): a job is at that building now, or, for your office, the team
+  // changed something on GitHub in the last hour. A slow breathing light; steady with reduced motion.
+  const GLOW = { office: '#7FE3C4', lab: '#8CCBFF', studio: '#C8A8FF', school: '#FFD77A', family: '#FFB08A', ministry: '#FFF1C2', launch: '#FFC59A' };
+  const glowing = (data.buildings || []).filter(b => b.working).map(b => {
+    const c = new T.Color(GLOW[b.id] || '#FFFFFF'), parts = pick.filter(m => m.userData.id === b.id);
+    parts.forEach(m => { m.material = m.material.clone(); m.material.emissive = c.clone(); m.userData.e0 = m.material.emissiveIntensity || 0; });
+    const [x, z] = POS[b.id], lamp = new T.PointLight(c, 6, 9, 1.6); lamp.position.set(x, (HT0[b.id] || 3) + 1.2, z + 1.4); s.add(lamp);
+    const halo = new T.Mesh(new T.CircleGeometry(b.id === 'school' ? 4.6 : 3, 48), new T.MeshBasicMaterial({ color: c, transparent: true, opacity: .22, depthWrite: false }));
+    halo.rotation.x = -Math.PI / 2; halo.position.set(x, .045, z); s.add(halo);
+    return { parts, lamp, halo };
+  });
+  const breathe = t => { const k = RM.matches ? .7 : .55 + .45 * Math.sin(t / 900);
+    glowing.forEach(g => { g.parts.forEach(m => { m.material.emissiveIntensity = m.userData.e0 + .05 + .13 * k; }); g.lamp.intensity = 3 + 7 * k; g.halo.material.opacity = .1 + .22 * k; }); };
+  breathe(0);
+  window.__cx3dGlow = () => (data.buildings || []).filter(b => b.working).map(b => b.id);
 
   // Live effects (short, then removed). Each returns false when it has finished.
   const fxs = [], AT = id => { const [x, z] = POS[id] || POS.office; return new T.Vector3(x, 0, z); };
@@ -154,6 +178,7 @@ function create(host, data, onPick) {
     if (!alive) return; requestAnimationFrame(frame);
     if (!visible) return;
     for (let i = fxs.length - 1; i >= 0; i--) if (!fxs[i](t)) fxs.splice(i, 1);
+    if (glowing.length && !RM.matches) { breathe(t); dirty = true; }
     if (fxs.length) dirty = true;
     if (glows.length && !RM.matches) { const k = .6 + .4 * Math.sin(t / 380); glows.forEach(m => { m.material.emissiveIntensity = k; }); dirty = true; }
     if (!dirty) return; dirty = false; place(); r.render(s, cam);
@@ -161,7 +186,7 @@ function create(host, data, onPick) {
     lbls.forEach(({ el, p }) => { v3.copy(p).project(cam); el.style.transform = `translate(-50%,-100%) translate(${(v3.x + 1) / 2 * w}px,${(1 - v3.y) / 2 * h}px)`; el.hidden = v3.z > 1; });
   }
   requestAnimationFrame(frame);
-  window.__cx3d = { state: () => ({ theta, dist, buildings: lbls.length, lines: (data.edges || []).length }) };
+  window.__cx3d = { state: () => ({ theta, dist, ph, buildings: lbls.length, lines: (data.edges || []).length, glowing: glowing.length }) };
   const api = { fx, dispose() { alive = false; ro.disconnect(); io.disconnect(); r.dispose(); root.remove(); if (window.CAMPUS3D.current === api) window.CAMPUS3D.current = null; } };
   window.CAMPUS3D.current = api;
   return api;

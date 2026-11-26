@@ -247,8 +247,15 @@ function cxEdgeState(a, b) {
   if (J.some(j => { const r = cxRoute(j), i = r.indexOf(cxAt(j)); return j.status !== 'not-started' && r.indexOf(b) > -1 && r.indexOf(b) < i; })) return 'green';
   return 'grey';
 }
+/* A building glows while work is there: a job is at it now, or (your office) the team changed something on GitHub in the
+   last hour. Read from the snapshot only. */
+function cxWorking(id) {
+  if (id === 'launch') return false;
+  if (id === 'office') { const last = (S.activity || []).map(a => a.date).filter(Boolean).sort().pop(); return !!last && Date.now() - new Date(last) < 3600e3; }
+  return cxJobsAt(id).length > 0;
+}
 function cxCampusData() {
-  return { buildings: CX_BLD.map(b => ({ id: b.id, name: b.name, short: { studio: 'Studio', family: 'Family Centre', lab: 'Testing Lab', launch: 'Launch' }[b.id] || b.name, who: b.lead ? `${CX_PEOPLE[b.lead].name}, ${CX_PEOPLE[b.lead].role}` : b.who, n: b.id === 'launch' ? 0 : cxJobsAt(b.id).length })),
+  return { buildings: CX_BLD.map(b => ({ id: b.id, name: b.name, short: { studio: 'Studio', family: 'Family Centre', lab: 'Testing Lab', launch: 'Launch' }[b.id] || b.name, who: b.lead ? `${CX_PEOPLE[b.lead].name}, ${CX_PEOPLE[b.lead].role}` : b.who, n: b.id === 'launch' ? 0 : cxJobsAt(b.id).length, working: cxWorking(b.id) })),
     edges: CX_EDGES.map(([a, b]) => ({ a, b, s: cxEdgeState(a, b) })) };
 }
 
@@ -319,7 +326,7 @@ function renderCampus() {
   view.innerHTML = `<div class="band cx-campus">
     <p class="eyebrow">Campus · from GitHub ${fmt(S.generated.at)}</p><h1>WhySteps campus</h1>
     ${cxLaunch().length ? cxLaunchBar() + cxFlatMap().replace('<a class="linkbtn" href="#campus">Open the 3D campus</a>', '') : ''}
-    <h2>3D campus</h2><p class="small muted">Your office stays as it is. Six buildings stand beside it, joined by glowing lines in the order work travels. Press a building to go inside. Drag to turn, pinch or scroll to zoom.</p>
+    <h2>3D campus</h2><p class="small muted">Your office stays as it is. Six buildings stand beside it, joined by glowing lines in the order work travels. Press a building to go inside. Drag to turn and tilt (or use the arrow buttons), pinch or scroll to zoom.</p>
     <div class="cx-3d" id="cx3d"></div>
     <p class="small cx-legend"><span class="cx-line e-blue"></span>Blue: a job moving <span class="cx-line e-green"></span>Green: approved <span class="cx-line e-red"></span>Red: sent back <span class="cx-line e-grey"></span>Grey: quiet</p>
     <div class="cx-blds">${CX_BLD.map(cxBldCard).join('')}</div>

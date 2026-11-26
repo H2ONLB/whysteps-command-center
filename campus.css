@@ -185,3 +185,10 @@ button.cx-stop-b:hover{border-color:var(--teal)}
 .cx-map .cx-legend{color:#C9DAD7;margin:0}
 .cx-ba-one figcaption{margin:0 0 6px}.cx-ba-pair figcaption{font-size:13px;color:var(--muted);text-align:center}
 .cx-look{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:10px 12px}.cx-look p{margin:0 0 8px}
+
+/* Turn and tilt buttons on the 3D office and campus (Hiba, 26 Nov 2026) */
+.v3-turn{position:absolute;left:10px;bottom:10px;z-index:3;display:flex;gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.v3-turn button{width:40px;height:40px;border:0;border-radius:10px;background:transparent;color:#1E3A3F;font:700 18px/1 var(--font,system-ui);cursor:pointer}
+.v3-turn button:hover{background:#E6F1EF}.v3-turn button:focus-visible{outline:2px solid #185FA5;outline-offset:1px}
+@media(max-width:600px){.v3-turn button{width:44px;height:44px}}
+.hq3d .v3-turn{left:auto;right:10px;top:10px;bottom:auto}
