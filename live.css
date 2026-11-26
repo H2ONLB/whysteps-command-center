@@ -42,3 +42,5 @@
   #stamp .ls-long, #stamp .stamp-links { display: none; }
   #stamp { white-space: nowrap; }
 }
+/* hidden while a panel is open, so it never covers it */
+body:has(#sheet:not([hidden])) .live-feed { display: none; }

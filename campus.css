@@ -192,3 +192,14 @@ button.cx-stop-b:hover{border-color:var(--teal)}
 .v3-turn button:hover{background:#E6F1EF}.v3-turn button:focus-visible{outline:2px solid #185FA5;outline-offset:1px}
 @media(max-width:600px){.v3-turn button{width:44px;height:44px}}
 .hq3d .v3-turn{left:auto;right:10px;top:10px;bottom:auto}
+
+/* The work plan: who works next, when each job starts, a missed turn in red (Hiba, 26 Nov 2026) */
+.cx-sched{margin:14px 0 18px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--paper,#fff)}
+.cx-sched h2{margin:0 0 8px;font-size:18px}
+.cx-sched ul{list-style:none;margin:0;padding:0;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.cx-sched li{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;background:#F3F6F5;line-height:1.35}
+.cx-sched li small{color:#4E5A58}
+.cx-sched li.late{background:#FDECEC;outline:1px solid #E5A3A0}.cx-sched li.late b{color:#A3231B}
+.cx-sched em{color:#7A5A00;font-style:normal;font-size:.92em}
+.cx-plan{margin:6px 0;padding:6px 10px;border-radius:10px;background:#EEF5FB;font-size:14px;line-height:1.4}
+.cx-plan.blocked{background:#FFF4E2}.cx-plan.late{background:#FDECEC;color:#7A1410}

@@ -83,6 +83,69 @@ function cxDots(j) {
   const r = cxRoute(j), i = j.status === 'done' ? r.length : j.status === 'not-started' ? -1 : r.indexOf(cxAt(j));
   return `<ol class="cx-dots" aria-label="Steps">${r.map((k, n) => `<li class="${n < i ? 'ok' : n === i ? (j.status === 'sent-back' ? 'back' : 'now') : ''}"><span aria-hidden="true"></span>${esc(CX_STEP[k] || cxStop(k).name)}</li>`).join('')}<li class="${j.status === 'done' ? 'ok' : ''}"><span aria-hidden="true"></span>You</li></ol>`;
 }
+/* ---------------------------------------------------------------- the work plan (Hiba, 26 Nov 2026: "I need something to
+   press to tell the AI to start, or an indication of when the work will start"). Each AI works at fixed turns
+   (docs/work-schedule.json, in the snapshot as S.schedule) and takes one job per turn, in the same order its scheduled
+   task uses: jobs Hiba pressed "Start now" on first, then moving or sent-back jobs, then not started. So every job
+   shows who starts it and when, a job waiting on Hiba says so, and an AI that missed its turn is flagged in red. */
+const cxTurnsOf = who => ((S.schedule && S.schedule.turns) || []).find(t => t.ai === who);
+const cxBeirut = d => { const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(d).map(x => [x.type, x.value])); return [+p.hour, +p.minute]; };
+function cxSlots(who, n, back) { // the next n turn times (or, with back, the most recent past ones)
+  const t = cxTurnsOf(who); if (!t) return [];
+  const out = [], from = new Date(t.from || 0), step = 60e3, now = Date.now();
+  let m = Math.floor(now / step) * step;
+  for (let i = 0; i < 60 * 24 * 8 && out.length < n; i++, m += back ? -step : step) {
+    const d = new Date(m); if (d < from) { if (back) break; else continue; }
+    const [h, mi] = cxBeirut(d); if (mi === t.minute && t.hours.includes(h)) out.push(d);
+  }
+  return out;
+}
+const cxWhen = d => { const today = new Date().toDateString() === d.toDateString(), tmr = new Date(Date.now() + 864e5).toDateString() === d.toDateString();
+  const hm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+  return today ? `today ${hm}` : tmr ? `tomorrow ${hm}` : new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Beirut', weekday: 'short', day: 'numeric', month: 'short' }).format(d) + ' ' + hm; };
+const cxPushes = () => THREADS.filter(t => t.state === 'open' && /^\[Push\]/i.test(t.title || ''));
+const cxPushFor = j => cxPushes().find(t => new RegExp(`\\(job ${j.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`).test(t.title));
+const cxBlocked = j => /waiting for your decision/i.test(j.now || '') ;
+function cxQueue(who) {
+  const L = cxJobs().filter(j => j.forLaunch !== false && j.status !== 'done' && j.owner === who && !cxBlocked(j));
+  const rank = j => cxPushFor(j) ? 0 : j.status === 'moving' || j.status === 'sent-back' ? 1 : 2;
+  return L.map((j, i) => [j, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(x => x[0]);
+}
+function cxPlan(j) {
+  if (j.status === 'done') return null;
+  if (cxBlocked(j)) return { blocked: true };
+  const t = cxTurnsOf(j.owner); if (!t) return { none: true };
+  const q = cxQueue(j.owner), pos = q.indexOf(j), at = cxSlots(j.owner, pos + 1)[pos];
+  return { pos, at, planned: t.status !== 'confirmed', pushed: !!cxPushFor(j) };
+}
+function cxMissed(who) { // the last turn ended over an hour ago and this AI left nothing on GitHub since
+  const t = cxTurnsOf(who); if (!t) return null;
+  const last = cxSlots(who, 1, true)[0]; if (!last || Date.now() - last < 3600e3) return null;
+  const key = cxAIKey(who), did = (S.activity || []).some(a => a.actor === key && a.date && new Date(a.date) >= last);
+  return did ? null : last;
+}
+const cxPlanLine = j => { const p = S.schedule ? cxPlan(j) : null; if (!p) return '';
+  if (p.blocked) return `<p class="cx-plan blocked">⏸ Waiting for your decision before it can start.</p>`;
+  if (p.none) return `<p class="cx-plan">No working hours set for ${esc(cxShortAI(j.owner))} yet.</p>`;
+  const miss = cxMissed(j.owner), when = p.at ? cxWhen(p.at) : 'after the next few days';
+  const verb = j.status === 'not-started' ? 'Starts' : 'Next step';
+  return `<p class="cx-plan${miss && p.pos === 0 ? ' late' : ''}">${miss && p.pos === 0 ? `⚠ Late: ${esc(cxShortAI(j.owner))} missed its ${esc(cxWhen(miss))} turn. ` : ''}${p.pushed ? '▶ You pressed Start now: first in line. ' : ''}${verb}: <strong>${esc(when)}</strong>, ${esc(cxShortAI(j.owner))}'s turn (${p.pos === 0 ? 'next in line' : `${p.pos + 1}${['st', 'nd', 'rd'][p.pos] || 'th'} in line`})${p.planned ? ' · planned hours, not yet set in that account' : ''}</p>`; };
+function cxScheduleHTML() {
+  const T = (S.schedule && S.schedule.turns) || []; if (!T.length) return '';
+  return `<section class="cx-sched" aria-label="When each AI works"><h2>Who works next</h2><ul>${T.map(t => {
+    const next = cxSlots(t.ai, 1)[0], miss = cxMissed(t.ai), q = cxQueue(t.ai), blocked = cxJobs().filter(j => j.owner === t.ai && j.forLaunch !== false && j.status !== 'done' && cxBlocked(j)).length;
+    return `<li class="${miss ? 'late' : ''}">${CH.svg(CH.robot(cxAIKey(t.ai)), 26)}<span><strong>${esc(t.ai)}</strong> · next turn ${next ? `<strong>${esc(cxWhen(next))}</strong>` : 'not set'}${t.status === 'confirmed' ? '' : ' <em>(planned, not yet set)</em>'}<br><small>${plural(q.length, 'job')} in line${blocked ? ` · ${blocked} waiting for you` : ''} · every 3 hours at :${String(t.minute).padStart(2, '0')}${miss ? ` · <b>⚠ missed its ${esc(cxWhen(miss))} turn</b>` : ''}</small></span></li>`; }).join('')}</ul>
+    <p class="small muted">Each AI does one job per turn. Press a job, then <strong>▶ Start now</strong>, to put it first in line.</p></section>`;
+}
+function cxStartNow(id) {
+  const j = cxJobs().find(x => x.id === id); if (!j) return;
+  const codex = j.owner === 'ChatGPT' ? `\n\n@codex please start this job now in H2ONLB/whysteps: read CLAUDE.md, take job "${j.id}" from docs/launch-jobs.json, work on a branch chatgpt/${j.id} and open a pull request.` : '';
+  const title = `[Push] Start now: ${j.title} (job ${j.id})`;
+  const b = `<!-- whysteps-command-center/1 -->\n**To:** ${j.owner}\n**From:** Hiba (founder)\n**Project / feature:** Start now: job ${j.id}\n\nHiba pressed ▶ Start now in the Command Center. Make this job your next turn: "${j.title}" (docs/launch-jobs.json, id ${j.id}). Close this Issue when the job has moved on.${codex}`;
+  sendOut({ kind: 'push', key: 'push-' + j.id, title, body: b, labels: 'push,command-center' },
+    () => { openGH(newIssueURL(title, b, 'push,command-center')); toast('▶ GitHub opened. Press the green Submit there: the job then goes first in line.'); });
+}
+
 /* One card per job: name, progress bar, Now at, Next stop, a line of dots for its steps. A sent-back job is a dashed
    card with the reason in plain words. Technical details stay behind "Show details". */
 function cxJobCard(j, opts) {
@@ -95,6 +158,7 @@ function cxJobCard(j, opts) {
     <p class="cx-at"><strong>${pct}%</strong> · ${j.status === 'done' ? 'Done' : `Now at: ${esc(cxNowAt(j))}`}</p>
     ${j.status !== 'done' ? `<p class="cx-at">Next stop: ${esc(cxNext(j))}</p>` : ''}
     ${j.now ? `<p class="cx-now small">${esc(j.now)}</p>` : ''}
+    ${cxPlanLine(j)}
     ${cxDots(j)}
     ${o.owner === false ? '' : `<p class="small muted cx-owner">${CH.svg(CH.robot(cxAIKey(j.owner)), 20)} ${esc(j.owner)}${j.forLaunch === false ? ' · after launch' : ''}</p>`}
     <details class="cx-more"><summary>Show details</summary><p class="small">${esc(j.details || 'No details recorded.')}</p>${links ? `<p class="small">${links}</p>` : ''}</details>
@@ -114,7 +178,7 @@ function cxLaunchBar() {
 }
 function cxRoadStop(j) {
   const [cls] = CX_LIGHT[j.status] || CX_LIGHT['not-started'];
-  const sub = j.status === 'done' ? 'Done' : j.status === 'sent-back' ? `Sent back by ${j.sentBackBy === 'Hiba' ? 'you' : j.sentBackBy || 'the team'}: ${j.reason || ''}` : j.status === 'moving' ? `${cxNowAt(j)} · ${cxShortAI(j.owner)}` : `Not started · ${cxShortAI(j.owner)}`;
+  const sub = j.status === 'done' ? 'Done' : j.status === 'sent-back' ? `Sent back by ${j.sentBackBy === 'Hiba' ? 'you' : j.sentBackBy || 'the team'}: ${j.reason || ''}` : j.status === 'moving' ? `${cxNowAt(j)} · ${cxShortAI(j.owner)}` : `Not started · ${cxShortAI(j.owner)}${(p => S.schedule && p && p.at ? ' · starts ' + cxWhen(p.at) : p && p.blocked ? ' · waiting for you' : '')(cxPlan(j))}`;
   return `<li class="cx-stop s-${cls}"><button type="button" class="cx-stop-b" data-cxjob="${esc(j.id)}"><span class="cx-circle" aria-hidden="true"></span><span><strong>${esc(j.title)}</strong><small>${esc(sub)}</small></span>
     <span class="cx-who">${CH.svg(CH.robot(cxAIKey(j.owner)), 26)}</span></button></li>`;
 }
@@ -127,7 +191,7 @@ function renderWork() {
   view.innerHTML = `<div class="band cx-work">
     <p class="eyebrow">Work · from GitHub ${fmt(S.generated.at)}</p>
     <h1>Road to launch</h1>
-    ${L.length ? cxLaunchBar() : '<div class="empty">The job list (docs/launch-jobs.json) is not in this snapshot yet. Refresh the office after it is merged.</div>'}
+    ${L.length ? cxLaunchBar() + cxScheduleHTML() : '<div class="empty">The job list (docs/launch-jobs.json) is not in this snapshot yet. Refresh the office after it is merged.</div>'}
     ${L.length ? cxFlatMap() : ''}
     <nav class="cx-go" aria-label="Places">
       <a class="primary" href="#campus">🏫 Campus</a><a class="ghost" href="#now">🏢 Your 3D office</a><a class="ghost" href="#campus-meeting">🗣 Meeting room</a>
@@ -149,7 +213,7 @@ function renderWork() {
 function cxJobSheet(id) {
   const j = cxJobs().find(x => x.id === id); if (!j) return;
   openSheet(`<p class="muted small">Job</p><h2 id="sheetTitle">${esc(j.title)}</h2>${cxJobCard(j)}
-    <div class="row"><button class="ghost" type="button" data-cxask="${esc(j.owner)}">Ask ${esc(cxShortAI(j.owner))} a question</button></div>`);
+    <div class="row">${j.status !== 'done' && !cxBlocked(j) ? (cxPushFor(j) ? `<a class="ghost" href="${esc(cxPushFor(j).url)}" target="_blank" rel="noopener">▶ Start requested ↗</a>` : `<button class="primary" type="button" data-cxstart="${esc(j.id)}">▶ Start now</button>`) : ''}<button class="ghost" type="button" data-cxask="${esc(j.owner)}">Ask ${esc(cxShortAI(j.owner))} a question</button></div>`);
 }
 
 /* ---------------------------------------------------------------- office visits: one card per job */
@@ -574,7 +638,8 @@ document.addEventListener('click', e => {
 
 /* ---------------------------------------------------------------- clicks for the campus screens */
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-cxjob],[data-cxall],[data-cxask],[data-cxto],[data-cxsend],[data-cxdoor],[data-cxlook]'); if (!t) return;
+  const t = e.target.closest('[data-cxjob],[data-cxall],[data-cxask],[data-cxto],[data-cxsend],[data-cxdoor],[data-cxlook],[data-cxstart]'); if (!t) return;
+  if (t.dataset.cxstart) return cxStartNow(t.dataset.cxstart);
   if (t.dataset.cxjob) return cxJobSheet(t.dataset.cxjob);
   if (t.dataset.cxall) { CX.allJobs = t.dataset.cxall === '1'; const y = scrollY; renderWork(); scrollTo(0, y); return; }
   if (t.dataset.cxask) return cxAskSheet(t.dataset.cxask);
