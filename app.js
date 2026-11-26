@@ -101,7 +101,7 @@ function renderTabs() {
 }
 function paintStamp() {
 const links = `<a href="${esc(S.branches.main.url)}" target="_blank" rel="noopener" title="Code version ${short(S.branches.main.sha)}">the code</a> · <a href="${esc(S.branches.coordination.url)}" target="_blank" rel="noopener" title="Notes version ${short(S.branches.coordination.sha)}">the team's notes</a>`;
-if (window.WSLive) { $('#stamp').innerHTML = `<span id="liveStamp"></span> · ${links}`; window.WSLive.paint(); }
+if (window.WSLive) { $('#stamp').innerHTML = `<span id="liveStamp"></span><span class="stamp-links"> · ${links}</span>`; window.WSLive.paint(); }
 else $('#stamp').innerHTML = `Read from GitHub ${fmt(S.generated.at)}${S.generated.by ? ' by Claude ' + esc(S.generated.by) : ''} · <a href="${esc(S.branches.main.url)}" target="_blank" rel="noopener" title="Code version ${short(S.branches.main.sha)}">the code</a> · <a href="${esc(S.branches.coordination.url)}" target="_blank" rel="noopener" title="Notes version ${short(S.branches.coordination.sha)}">the team's notes</a>`;
 $('#notes').textContent = (S.notes || []).length ? 'Snapshot notes: ' + S.notes.join(' ') : '';
 }

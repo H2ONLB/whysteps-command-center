@@ -17,7 +17,7 @@
 .live-feed { position: fixed; right: 12px; bottom: 12px; z-index: 50; width: min(360px, calc(100vw - 24px)); background: #fff; color: #1f1e1c; border: 1px solid rgba(0, 0, 0, .1); border-radius: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .14); font-size: .9rem; }
 .live-feed-h { display: flex; align-items: center; gap: .3rem; width: 100%; background: none; border: 0; padding: .65rem .9rem; font: inherit; font-weight: 700; cursor: pointer; text-align: left; color: inherit; }
 .live-n { margin-left: auto; background: #E3F3E8; color: #0F5C3F; border-radius: 99px; padding: 0 .5rem; font-size: .8rem; }
-.live-feed-b { border-top: 1px solid rgba(0, 0, 0, .07); max-height: 40vh; overflow: auto; }
+.live-feed-b { border-top: 1px solid rgba(0, 0, 0, .07); max-height: 32vh; overflow: auto; }
 .live-feed ol { list-style: none; margin: 0; padding: .4rem .9rem; }
 .live-feed li { padding: .35rem 0; border-bottom: 1px dashed rgba(0, 0, 0, .08); line-height: 1.35; }
 .live-feed li:last-child { border-bottom: 0; }
@@ -27,5 +27,18 @@
 .live-feed a { color: #185FA5; }
 .live-feed-f { margin: 0; padding: .5rem .9rem .7rem; color: #5F5E5A; font-size: .85rem; }
 .live-feed .muted { color: #5F5E5A; }
-@media (prefers-reduced-motion: reduce) { .live-dot, .live-feed li.new { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .live-dot, .live-feed li.new, .live-n.new { animation: none; } }
 @media print { .live-feed { display: none; } }
+
+/* Folded, the feed is one small button, not a panel. */
+.live-feed.closed { width: auto; max-width: calc(100vw - 24px); }
+.live-feed.closed .live-feed-h { padding: .5rem .85rem; }
+.live-n.new { background: #FFF1D6; color: #7A3E00; animation: liveNew 2.5s ease-out 2; }
+/* Phones and small tablets (menu at the bottom): sit above the menu, short stamp, no links in the stamp. */
+@media (max-width: 899px) {
+  .live-feed { right: 10px; bottom: calc(84px + env(safe-area-inset-bottom)); width: min(340px, calc(100vw - 20px)); }
+  .live-feed.closed { width: auto; }
+  .live-feed-b { max-height: 34vh; }
+  #stamp .ls-long, #stamp .stamp-links { display: none; }
+  #stamp { white-space: nowrap; }
+}

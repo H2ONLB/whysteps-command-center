@@ -741,3 +741,5 @@ ol.steps{padding-left:22px}ol.steps li{margin:4px 0}
 .wb-leads { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
 .wb-leads p { margin: 4px 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .teamreview{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+/* The header line #stamp shares the class name with the signing-stamp buttons above; keep it plain text. */
+#stamp.stamp{position:static;min-height:0;border:0;border-radius:0;background:none;box-shadow:none;padding:0;margin:2px 0 0;font:inherit;font-size:13px;line-height:1.35;color:var(--muted);cursor:auto;transform:none}

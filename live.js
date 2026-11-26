@@ -28,7 +28,7 @@ const L = { data: null, etag: null, checked: null, ok: false, why: '', pending: 
 function paint() {
   const el = $('#liveStamp') || $('#stamp'); if (!el) return;
   const last = L.data && L.data.generated && L.data.generated.at;
-  if (L.ok) el.innerHTML = `<span class="live-dot" aria-hidden="true"></span><strong>Live</strong> · last change ${hm(last)} · checked ${hm(L.checked)}${L.pending ? ' · <em>new data waiting until you close this panel</em>' : ''}`;
+  if (L.ok) el.innerHTML = `<span class="live-dot" aria-hidden="true"></span><strong>Live</strong> · <span class="ls-long">last change </span>${hm(last)}<span class="ls-long"> · checked ${hm(L.checked)}</span>${L.pending ? ' · <em>new data waiting until you close this panel</em>' : ''}`;
   else el.innerHTML = `<span class="live-dot off" aria-hidden="true"></span><strong>Offline:</strong> showing data from ${last ? hm(last) + (new Date(last).toDateString() !== new Date().toDateString() ? ' on ' + new Date(last).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: TZ }) : '') : 'nowhere yet'}. ${esc(L.why)} <button type="button" class="live-link" data-live="retry">Try again</button>${/key/i.test(L.why) ? ' <button type="button" class="live-link" data-live="change">Change key</button>' : ''}`;
 }
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -139,9 +139,11 @@ function feedDraw(fresh) {
   if (!L.booted) return;
   let box = $('#liveFeed');
   if (!box) { box = document.createElement('aside'); box.id = 'liveFeed'; box.className = 'live-feed'; box.setAttribute('aria-label', 'Just now'); document.body.append(box); }
-  const items = feedList(), open = get('wscc-live-feed-open') !== '0';
+  const items = feedList(), saved = get('wscc-live-feed-open'), open = saved === '1'; // starts folded (Hiba, 26 Nov 2026: the open list covered the office); a tap opens it
+  const unseen = Math.max(0, items.length - (+get('wscc-live-feed-seen') || 0));
+  if (open) set('wscc-live-feed-seen', String(items.length));
   box.classList.toggle('closed', !open);
-  box.innerHTML = `<button type="button" class="live-feed-h" data-live="feed" aria-expanded="${open}"><span class="live-dot${L.ok ? '' : ' off'}" aria-hidden="true"></span>${L.ok || !L.checked ? 'Just now' : `Offline · data from ${hm(L.data && L.data.generated && L.data.generated.at)}`}${items.length ? ` <span class="live-n">${items.length}</span>` : ''}</button>
+  box.innerHTML = `<button type="button" class="live-feed-h" data-live="feed" aria-expanded="${open}"><span class="live-dot${L.ok ? '' : ' off'}" aria-hidden="true"></span>${L.ok || !L.checked ? 'Just now' : `Offline · data from ${hm(L.data && L.data.generated && L.data.generated.at)}`}${open ? (items.length ? ` <span class="live-n">${items.length}</span>` : '') : (unseen ? ` <span class="live-n new">${unseen} new</span>` : '')}</button>
     <div class="live-feed-b" ${open ? '' : 'hidden'}><ol aria-live="polite">${items.length ? items.map((x, i) => `<li${fresh && i === 0 ? ' class="new"' : ''}><time>${hm(x.at)}</time> <a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.text.length > 140 ? x.text.slice(0, 138) + '…' : x.text)}</a></li>`).join('') : '<li class="muted">Nothing new since you opened the page. Changes from GitHub appear here within about two minutes.</li>'}</ol>
     <p class="live-feed-f"><button type="button" class="live-link" data-live="check">Check now</button> · <button type="button" class="live-link" data-live="forget">Forget key</button></p></div>`;
 }
@@ -178,7 +180,7 @@ document.addEventListener('click', async e => {
   if (a === 'retry' || a === 'check') { t.disabled = true; await check(); t.disabled = false; schedule(); }
   if (a === 'change') { del(K.key); location.reload(); }
   if (a === 'forget') { if (confirm('Forget the GitHub key in this browser? You will need to paste it again to see live data.')) { del(K.key); del(K.cache); location.reload(); } }
-  if (a === 'feed') { set('wscc-live-feed-open', $('#liveFeed').classList.contains('closed') ? '1' : '0'); feedDraw(false); }
+  if (a === 'feed') { set('wscc-live-feed-open', $('#liveFeed').classList.contains('closed') ? '1' : '0'); feedDraw(false); $('#liveFeed .live-feed-h')?.focus(); }
 });
 document.addEventListener('visibilitychange', async () => {
   if (document.hidden) { clearTimeout(L.timer); return; }
