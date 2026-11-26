@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WhySteps Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Caveat:wght@600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="campus.css">
+<link rel="stylesheet" href="live.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="7"/><path d="M8 22h5v-5h5v-5h6" /></svg>
+    <div>
+      <p class="name">WhySteps <span>Command Center</span></p>
+      <p class="stamp" id="stamp">Connecting to GitHub…</p>
+    </div>
+  </div>
+  <a class="primary sitebtn" id="siteBtn" href="#dashboard" target="_blank" rel="noopener" hidden><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span class="l-full">Open Latest Website</span><span class="l-short">Website</span></a>
+  <button class="ghost refresh" id="refreshBtn" type="button" aria-label="Refresh your office" title="Refresh your office"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span>Refresh</span></button>
+</header>
+<nav class="tabs" id="tabs" aria-label="Command Center sections"></nav>
+
+<main id="main" tabindex="-1">
+  <section id="view" aria-live="polite"></section>
+</main>
+
+<footer class="foot">
+  <p><strong>Real records only.</strong> Every figure and line here is read from GitHub (H2ONLB/whysteps: <code>main</code> and the <code>coordination</code> branch) and links to its source. All 116 roles are played by Claude (AI); they are not separate people. Nothing is simulated.</p>
+  <p id="notes"></p>
+</footer>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="sheet-back" data-close></div>
+  <aside class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <button class="icon-btn close" type="button" data-close aria-label="Close"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    <div id="sheetBody"></div>
+  </aside>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>window.WS_SITE = null;</script>
+<script src="live.js"></script>
+</body>
+</html>

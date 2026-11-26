@@ -1,0 +1,31 @@
+/* Live Command Center (GitHub Pages only): the stamp, the key screen and the "Just now" feed. */
+.live-dot { display: inline-block; width: .55em; height: .55em; border-radius: 50%; background: #1D9E75; margin-right: .35em; vertical-align: .05em; box-shadow: 0 0 0 0 rgba(29, 158, 117, .5); animation: livePing 2.4s ease-out infinite; }
+.live-dot.off { background: #B45309; animation: none; }
+@keyframes livePing { 0% { box-shadow: 0 0 0 0 rgba(29, 158, 117, .5); } 80%, 100% { box-shadow: 0 0 0 .5em rgba(29, 158, 117, 0); } }
+.live-link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; font: inherit; cursor: pointer; }
+.live-link:focus-visible, .live-feed-h:focus-visible { outline: 2px solid #185FA5; outline-offset: 2px; }
+
+.live-key { display: grid; place-items: center; min-height: 60vh; }
+.live-card { max-width: 34rem; width: 100%; background: #fff; border: 1px solid rgba(0, 0, 0, .08); border-radius: 16px; padding: 1.5rem 1.6rem; box-shadow: 0 6px 24px rgba(0, 0, 0, .06); }
+.live-card h1 { margin: .2rem 0 .6rem; font-size: 1.5rem; }
+.live-card label { display: block; font-weight: 700; margin: 1rem 0 .3rem; }
+.live-card input { width: 100%; box-sizing: border-box; font: inherit; font-size: 1rem; padding: .7rem .8rem; border: 1px solid #b9b6ad; border-radius: 10px; }
+.live-card details { margin-top: 1rem; }
+.live-card ol { padding-left: 1.2rem; line-height: 1.55; }
+.live-err { background: #FFF4E5; border: 1px solid #F5C27A; border-radius: 10px; padding: .6rem .8rem; color: #7A3E00; }
+
+.live-feed { position: fixed; right: 12px; bottom: 12px; z-index: 50; width: min(360px, calc(100vw - 24px)); background: #fff; color: #1f1e1c; border: 1px solid rgba(0, 0, 0, .1); border-radius: 14px; box-shadow: 0 8px 28px rgba(0, 0, 0, .14); font-size: .9rem; }
+.live-feed-h { display: flex; align-items: center; gap: .3rem; width: 100%; background: none; border: 0; padding: .65rem .9rem; font: inherit; font-weight: 700; cursor: pointer; text-align: left; color: inherit; }
+.live-n { margin-left: auto; background: #E3F3E8; color: #0F5C3F; border-radius: 99px; padding: 0 .5rem; font-size: .8rem; }
+.live-feed-b { border-top: 1px solid rgba(0, 0, 0, .07); max-height: 40vh; overflow: auto; }
+.live-feed ol { list-style: none; margin: 0; padding: .4rem .9rem; }
+.live-feed li { padding: .35rem 0; border-bottom: 1px dashed rgba(0, 0, 0, .08); line-height: 1.35; }
+.live-feed li:last-child { border-bottom: 0; }
+.live-feed li.new { animation: liveNew 2.5s ease-out; }
+@keyframes liveNew { from { background: #FFF6D6; } to { background: transparent; } }
+.live-feed time { color: #5F5E5A; font-variant-numeric: tabular-nums; margin-right: .2rem; }
+.live-feed a { color: #185FA5; }
+.live-feed-f { margin: 0; padding: .5rem .9rem .7rem; color: #5F5E5A; font-size: .85rem; }
+.live-feed .muted { color: #5F5E5A; }
+@media (prefers-reduced-motion: reduce) { .live-dot, .live-feed li.new { animation: none; } }
+@media print { .live-feed { display: none; } }
